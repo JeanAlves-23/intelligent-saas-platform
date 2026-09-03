@@ -73,3 +73,9 @@ See [PROJECT.md](PROJECT.md).
 
 ## License
 MIT
+
+## Development Workflow
+
+This project follows a pull-request-based development workflow.
+
+Changes are developed in feature branches, validated by automated tests and quality checks, and merged into `main` only after CI passes.
