@@ -5,15 +5,17 @@ Revises: 110943447856
 Create Date: 2026-09-27 18:12:06.492386
 
 """
-from typing import Sequence, Union  # noqa: UP035
+
+from collections.abc import Sequence
+from typing import Union
 
 import sqlalchemy as sa  # noqa: F401
 
 from alembic import op  # noqa: F401
 
 # revision identifiers, used by Alembic.
-revision: str = '48447ab89a2f'
-down_revision: Union[str, Sequence[str], None] = '110943447856'  # noqa: UP007
+revision: str = "48447ab89a2f"
+down_revision: Union[str, Sequence[str], None] = "110943447856"  # noqa: UP007
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: UP007
 depends_on: Union[str, Sequence[str], None] = None  # noqa: UP007
 
