@@ -13,6 +13,27 @@ jobs:
   quality:
     name: Lint, format and test
     runs-on: ubuntu-latest
+
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/intelligent_saas
+      REDIS_URL: redis://localhost:6379/0
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: intelligent_saas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U app -d intelligent_saas"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
