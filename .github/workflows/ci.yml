@@ -58,5 +58,8 @@ jobs:
       - name: Check format
         run: uv run ruff format --check .
 
+      - name: Apply database migrations
+        run: uv run alembic upgrade head  
+
       - name: Run tests
         run: uv run pytest
