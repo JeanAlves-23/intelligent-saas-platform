@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.models.membership import Membership
 from app.models.organization import Organization
@@ -10,9 +11,13 @@ from app.models.user import User
 def test_create_user() -> None:
     db = SessionLocal()
 
+    plain_password = "SecurePassword123!"
+    hashed_password = hash_password(plain_password)
+
     user = User(
         email="user@example.com",
         full_name="Test User",
+        password_hash=hashed_password,
     )
 
     try:
@@ -21,6 +26,10 @@ def test_create_user() -> None:
         db.refresh(user)
 
         saved = db.get(User, user.id)
+
+        assert saved is not None
+        assert saved.password_hash != plain_password
+        assert verify_password(plain_password, saved.password_hash) is True
 
         assert saved is not None
         assert saved.email == "user@example.com"
@@ -46,6 +55,7 @@ def test_create_membership() -> None:
     user = User(
         email="member@example.com",
         full_name="Member User",
+        password_hash=hash_password("TestPassword123!"),
     )
 
     organization = Organization(
@@ -96,6 +106,7 @@ def test_duplicate_membership_is_rejected() -> None:
     user = User(
         email="duplicate-membership@example.com",
         full_name="Duplicate Membership User",
+        password_hash=hash_password("TestPassword123!"),
     )
 
     organization = Organization(
