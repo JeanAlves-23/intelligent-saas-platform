@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -21,7 +23,7 @@ router = APIRouter(
 )
 def register(
     payload: UserRegisterRequest,
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ) -> UserResponse:
     try:
         user = register_user(db, payload)
