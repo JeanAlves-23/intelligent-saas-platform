@@ -1,18 +1,13 @@
-from app.core.security import hash_password
-
+import jwt
 import pytest
 
-import jwt
-
-from app.core.security import verify_password
 from app.core.config import settings
+from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.schemas.auth import UserRegisterRequest
 from app.services.auth import (
     EmailAlreadyRegisteredError,
-    InactiveUserError,
-    InvalidCredentialsError,
     authenticate_user,
     register_user,
 )
