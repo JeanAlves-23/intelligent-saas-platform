@@ -2,13 +2,21 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
 from app.schemas.auth import UserRegisterRequest
 
 
 class EmailAlreadyRegisteredError(Exception):
     """Raised when attempting to register an existing email."""
+
+
+class InvalidCredentialsError(Exception):
+    """Raised when login credentials are invalid."""
+
+
+class InactiveUserError(Exception):
+    """Raised when an inactive user attempts to authenticate."""
 
 
 def register_user(
@@ -39,3 +47,24 @@ def register_user(
     db.refresh(user)
 
     return user
+
+
+def authenticate_user(
+    db: Session,
+    email: str,
+    password: str,
+) -> str:
+    normalized_email = email.lower()
+
+    user = db.scalar(select(User).where(User.email == normalized_email))
+
+    if user is None:
+        raise InvalidCredentialsError
+
+    if not verify_password(password, user.password_hash):
+        raise InvalidCredentialsError
+
+    if not user.is_active:
+        raise InactiveUserError
+
+    return create_access_token(str(user.id))

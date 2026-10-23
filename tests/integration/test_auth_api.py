@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 
-from app.core.security import verify_password
+from app.core.security import (
+    hash_password,
+    verify_password,
+)
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.user import User
@@ -108,3 +111,124 @@ def test_register_short_password_returns_validation_error() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_login_returns_access_token() -> None:
+    email = "login-api@example.com"
+    password = "SecurePassword123!"
+
+    db = SessionLocal()
+
+    user = User(
+        email=email,
+        full_name="Login API User",
+        password_hash=hash_password(password),
+    )
+
+    try:
+        db.add(user)
+        db.commit()
+
+        response = client.post(
+            "/auth/login",
+            json={
+                "email": email,
+                "password": password,
+            },
+        )
+
+        assert response.status_code == 200
+
+        body = response.json()
+
+        assert "access_token" in body
+        assert body["token_type"] == "bearer"
+    finally:
+        db.rollback()
+        db.query(User).filter(User.email == email).delete()
+        db.commit()
+        db.close()
+
+
+def test_login_inactive_user_returns_forbidden() -> None:
+    email = "inactive-api@example.com"
+    password = "SecurePassword123!"
+
+    db = SessionLocal()
+
+    user = User(
+        email=email,
+        full_name="Inactive API User",
+        password_hash=hash_password(password),
+        is_active=False,
+    )
+
+    try:
+        db.add(user)
+        db.commit()
+
+        response = client.post(
+            "/auth/login",
+            json={
+                "email": email,
+                "password": password,
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Inactive user"}
+    finally:
+        db.rollback()
+        db.query(User).filter(User.email == email).delete()
+        db.commit()
+        db.close()
+
+
+def test_login_with_wrong_password_returns_unauthorized() -> None:
+    email = "wrong-password-api@example.com"
+    password = "SecurePassword123!"
+
+    db = SessionLocal()
+
+    user = User(
+        email=email,
+        full_name="Wrong Password API User",
+        password_hash=hash_password(password),
+    )
+
+    try:
+        db.add(user)
+        db.commit()
+
+        response = client.post(
+            "/auth/login",
+            json={
+                "email": email,
+                "password": "WrongPassword123!",
+            },
+        )
+
+        assert response.status_code == 401
+        assert response.json() == {
+            "detail": "Invalid email or password",
+        }
+    finally:
+        db.rollback()
+        db.query(User).filter(User.email == email).delete()
+        db.commit()
+        db.close()
+
+
+def test_login_with_unknown_email_returns_unauthorized() -> None:
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "unknown-api@example.com",
+            "password": "SecurePassword123!",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Invalid email or password",
+    }

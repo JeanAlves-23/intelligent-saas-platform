@@ -1,11 +1,14 @@
+import jwt
 import pytest
 
-from app.core.security import verify_password
+from app.core.config import settings
+from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.schemas.auth import UserRegisterRequest
 from app.services.auth import (
     EmailAlreadyRegisteredError,
+    authenticate_user,
     register_user,
 )
 
@@ -83,5 +86,38 @@ def test_register_duplicate_email_is_rejected() -> None:
 
         db.query(User).filter(User.email == "duplicate-registration@example.com").delete()
 
+        db.commit()
+        db.close()
+
+
+def test_authenticate_user_returns_access_token() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="login@example.com",
+        full_name="Login User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    try:
+        db.add(user)
+        db.commit()
+
+        token = authenticate_user(
+            db,
+            "login@example.com",
+            "SecurePassword123!",
+        )
+
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+        )
+
+        assert payload["sub"] == str(user.id)
+    finally:
+        db.rollback()
+        db.query(User).filter(User.email == "login@example.com").delete()
         db.commit()
         db.close()

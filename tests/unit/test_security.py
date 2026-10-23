@@ -1,4 +1,7 @@
-from app.core.security import hash_password, verify_password
+import jwt
+
+from app.core.config import settings
+from app.core.security import create_access_token, hash_password, verify_password
 
 
 def test_hash_password() -> None:
@@ -33,3 +36,29 @@ def test_same_password_generates_different_hashes() -> None:
 
     assert verify_password(password, first) is True
     assert verify_password(password, second) is True
+
+
+def test_create_access_token() -> None:
+    token = create_access_token("user-id-123")
+
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+    )
+
+    assert payload["sub"] == "user-id-123"
+    assert "iat" in payload
+    assert "exp" in payload
+
+
+def test_access_token_has_future_expiration() -> None:
+    token = create_access_token("user-id-123")
+
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+    )
+
+    assert payload["exp"] > payload["iat"]

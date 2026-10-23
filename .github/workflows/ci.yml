@@ -18,6 +18,9 @@ jobs:
       APP_ENV: test
       DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/intelligent_saas
       REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: test-secret-key-for-ci-at-least-32-bytes-long
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
 
     services:
       postgres:
