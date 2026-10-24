@@ -1,6 +1,7 @@
+import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_user
@@ -11,7 +12,16 @@ from app.db.session import get_db
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
+from app.schemas.membership import (
+    MembershipResponse,
+    MembershipRoleUpdateRequest,
+)
 from app.schemas.organization import OrganizationResponse
+from app.services.membership import (
+    MembershipNotFoundError,
+    list_organization_members,
+    update_membership_role,
+)
 from app.services.organization import get_user_organizations
 
 router = APIRouter(
@@ -66,3 +76,61 @@ def admin_check(
         "status": "ok",
         "role": membership.role,
     }
+
+
+@router.get(
+    "/{organization_id}/members",
+    response_model=list[MembershipResponse],
+)
+def list_members(
+    organization_id: uuid.UUID,
+    membership: Annotated[
+        Membership,
+        Depends(
+            require_organization_role(
+                OrganizationRole.ADMIN,
+            )
+        ),
+    ],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[MembershipResponse]:
+    memberships = list_organization_members(
+        db,
+        organization_id,
+    )
+
+    return [MembershipResponse.model_validate(item) for item in memberships]
+
+
+@router.patch(
+    "/{organization_id}/members/{membership_id}",
+    response_model=MembershipResponse,
+)
+def update_member_role(
+    organization_id: uuid.UUID,
+    membership_id: uuid.UUID,
+    payload: MembershipRoleUpdateRequest,
+    owner_membership: Annotated[
+        Membership,
+        Depends(
+            require_organization_role(
+                OrganizationRole.OWNER,
+            )
+        ),
+    ],
+    db: Annotated[Session, Depends(get_db)],
+) -> MembershipResponse:
+    try:
+        updated_membership = update_membership_role(
+            db,
+            organization_id,
+            membership_id,
+            payload.role,
+        )
+    except MembershipNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Membership not found",
+        ) from exc
+
+    return MembershipResponse.model_validate(updated_membership)

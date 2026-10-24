@@ -436,3 +436,240 @@ def test_user_without_membership_cannot_access_admin_check() -> None:
         ).delete()
         db.commit()
         db.close()
+
+
+def test_admin_can_list_organization_members() -> None:
+    db = SessionLocal()
+
+    admin = User(
+        email="members-admin@example.com",
+        full_name="Members Admin",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    member_user = User(
+        email="members-user@example.com",
+        full_name="Members User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    organization = Organization(
+        name="Members Organization",
+        slug="members-organization",
+    )
+
+    try:
+        db.add_all([admin, member_user, organization])
+        db.commit()
+
+        admin_membership = Membership(
+            user_id=admin.id,
+            organization_id=organization.id,
+            role="admin",
+        )
+        member_membership = Membership(
+            user_id=member_user.id,
+            organization_id=organization.id,
+            role="member",
+        )
+
+        db.add_all([admin_membership, member_membership])
+        db.commit()
+
+        token = create_access_token(str(admin.id))
+
+        response = client.get(
+            f"/organizations/{organization.id}/members",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        assert len(response.json()) == 2
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(User).filter(
+            User.email.in_(
+                [
+                    "members-admin@example.com",
+                    "members-user@example.com",
+                ]
+            )
+        ).delete(synchronize_session=False)
+        db.query(Organization).filter(Organization.slug == "members-organization").delete()
+        db.commit()
+        db.close()
+
+
+def test_member_cannot_list_organization_members() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="members-denied@example.com",
+        full_name="Members Denied",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    organization = Organization(
+        name="Members Denied Organization",
+        slug="members-denied-organization",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role="member",
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.get(
+            f"/organizations/{organization.id}/members",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {
+            "detail": "Insufficient organization role",
+        }
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(User).filter(User.email == "members-denied@example.com").delete()
+        db.query(Organization).filter(Organization.slug == "members-denied-organization").delete()
+        db.commit()
+        db.close()
+
+
+def test_owner_can_update_member_role() -> None:
+    db = SessionLocal()
+
+    owner = User(
+        email="role-owner@example.com",
+        full_name="Role Owner",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    target = User(
+        email="role-target@example.com",
+        full_name="Role Target",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    organization = Organization(
+        name="Role Management Organization",
+        slug="role-management-organization",
+    )
+
+    try:
+        db.add_all([owner, target, organization])
+        db.commit()
+
+        owner_membership = Membership(
+            user_id=owner.id,
+            organization_id=organization.id,
+            role="owner",
+        )
+        target_membership = Membership(
+            user_id=target.id,
+            organization_id=organization.id,
+            role="member",
+        )
+
+        db.add_all([owner_membership, target_membership])
+        db.commit()
+
+        token = create_access_token(str(owner.id))
+
+        response = client.patch(
+            f"/organizations/{organization.id}/members/{target_membership.id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"role": "admin"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["role"] == "admin"
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(User).filter(
+            User.email.in_(
+                [
+                    "role-owner@example.com",
+                    "role-target@example.com",
+                ]
+            )
+        ).delete(synchronize_session=False)
+        db.query(Organization).filter(Organization.slug == "role-management-organization").delete()
+        db.commit()
+        db.close()
+
+
+def test_admin_cannot_update_member_role() -> None:
+    db = SessionLocal()
+
+    admin = User(
+        email="role-admin@example.com",
+        full_name="Role Admin",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    target = User(
+        email="role-admin-target@example.com",
+        full_name="Role Admin Target",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+    organization = Organization(
+        name="Role Admin Organization",
+        slug="role-admin-organization",
+    )
+
+    try:
+        db.add_all([admin, target, organization])
+        db.commit()
+
+        admin_membership = Membership(
+            user_id=admin.id,
+            organization_id=organization.id,
+            role="admin",
+        )
+        target_membership = Membership(
+            user_id=target.id,
+            organization_id=organization.id,
+            role="member",
+        )
+
+        db.add_all([admin_membership, target_membership])
+        db.commit()
+
+        token = create_access_token(str(admin.id))
+
+        response = client.patch(
+            f"/organizations/{organization.id}/members/{target_membership.id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"role": "admin"},
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {
+            "detail": "Insufficient organization role",
+        }
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(User).filter(
+            User.email.in_(
+                [
+                    "role-admin@example.com",
+                    "role-admin-target@example.com",
+                ]
+            )
+        ).delete(synchronize_session=False)
+        db.query(Organization).filter(Organization.slug == "role-admin-organization").delete()
+        db.commit()
+        db.close()
