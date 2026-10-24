@@ -18,6 +18,10 @@ from app.services.auth import (
     register_user,
 )
 
+from app.api.dependencies.auth import get_current_user
+from app.models.user import User
+
+
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],
@@ -72,3 +76,13 @@ def login(
     return AccessTokenResponse(
         access_token=token,
     )
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+)
+def get_me(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserResponse:
+    return UserResponse.model_validate(current_user)
