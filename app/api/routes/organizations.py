@@ -19,6 +19,7 @@ from app.schemas.membership import (
 from app.schemas.organization import (
     OrganizationCreateRequest,
     OrganizationResponse,
+    OrganizationUpdateRequest,
 )
 from app.services.membership import (
     MembershipNotFoundError,
@@ -26,9 +27,11 @@ from app.services.membership import (
     update_membership_role,
 )
 from app.services.organization import (
+    OrganizationNotFoundError,
     OrganizationSlugAlreadyExistsError,
     create_organization,
     get_user_organizations,
+    update_organization,
 )
 
 router = APIRouter(
@@ -164,6 +167,40 @@ def create_organization_endpoint(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Organization slug already exists",
+        ) from exc
+
+    return OrganizationResponse.model_validate(organization)
+
+
+@router.patch(
+    "/{organization_id}",
+    response_model=OrganizationResponse,
+)
+def update_organization_endpoint(
+    organization_id: uuid.UUID,
+    payload: OrganizationUpdateRequest,
+    membership: Annotated[
+        Membership,
+        Depends(require_organization_role(OrganizationRole.ADMIN)),
+    ],
+    db: Annotated[Session, Depends(get_db)],
+) -> OrganizationResponse:
+    try:
+        organization = update_organization(
+            db,
+            organization_id,
+            name=payload.name,
+            slug=payload.slug,
+        )
+    except OrganizationSlugAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Organization slug already exists",
+        ) from exc
+    except OrganizationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found",
         ) from exc
 
     return OrganizationResponse.model_validate(organization)
