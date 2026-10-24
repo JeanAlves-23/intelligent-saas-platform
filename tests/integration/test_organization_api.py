@@ -673,3 +673,158 @@ def test_admin_cannot_update_member_role() -> None:
         db.query(Organization).filter(Organization.slug == "role-admin-organization").delete()
         db.commit()
         db.close()
+
+
+def test_create_organization_returns_created_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-create-api@example.com",
+        full_name="Organization Create API User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    try:
+        db.add(user)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            "/organizations",
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+            json={
+                "name": "API Created Organization",
+                "slug": "api-created-organization",
+            },
+        )
+
+        assert response.status_code == 201
+
+        body = response.json()
+
+        assert body["name"] == "API Created Organization"
+        assert body["slug"] == "api-created-organization"
+
+        membership = (
+            db.query(Membership)
+            .filter(
+                Membership.user_id == user.id,
+                Membership.organization_id == body["id"],
+            )
+            .one()
+        )
+
+        assert membership.role == "owner"
+
+    finally:
+        db.rollback()
+
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+
+        db.query(Organization).filter(Organization.slug == "api-created-organization").delete()
+
+        db.query(User).filter(User.email == "organization-create-api@example.com").delete()
+
+        db.commit()
+        db.close()
+
+
+def test_create_organization_duplicate_slug_returns_conflict() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-create-duplicate@example.com",
+        full_name="Organization Create Duplicate User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    existing = Organization(
+        name="Existing API Organization",
+        slug="api-duplicate-organization",
+    )
+
+    try:
+        db.add_all([user, existing])
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            "/organizations",
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+            json={
+                "name": "Another Organization",
+                "slug": "api-duplicate-organization",
+            },
+        )
+
+        assert response.status_code == 409
+        assert response.json() == {
+            "detail": "Organization slug already exists",
+        }
+
+    finally:
+        db.rollback()
+
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+
+        db.query(Organization).filter(Organization.slug == "api-duplicate-organization").delete()
+
+        db.query(User).filter(User.email == "organization-create-duplicate@example.com").delete()
+
+        db.commit()
+        db.close()
+
+
+def test_create_organization_invalid_slug_returns_validation_error() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-invalid-slug@example.com",
+        full_name="Organization Invalid Slug User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    try:
+        db.add(user)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            "/organizations",
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+            json={
+                "name": "Invalid Slug Organization",
+                "slug": "Invalid Slug!",
+            },
+        )
+
+        assert response.status_code == 422
+
+    finally:
+        db.rollback()
+
+        db.query(User).filter(User.email == "organization-invalid-slug@example.com").delete()
+
+        db.commit()
+        db.close()
+
+
+def test_create_organization_without_token_returns_unauthorized() -> None:
+    response = client.post(
+        "/organizations",
+        json={
+            "name": "Unauthorized Organization",
+            "slug": "unauthorized-organization-create",
+        },
+    )
+
+    assert response.status_code == 401

@@ -1,8 +1,10 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.roles import OrganizationRole
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
@@ -10,6 +12,10 @@ from app.models.user import User
 
 class OrganizationAccessDeniedError(Exception):
     """Raised when a user has no membership in an organization."""
+
+
+class OrganizationSlugAlreadyExistsError(Exception):
+    """Raised when attempting to create an organization with an existing slug."""
 
 
 def get_user_organizations(
@@ -50,5 +56,50 @@ def get_authorized_organization(
 
     if organization is None:
         raise OrganizationAccessDeniedError
+
+    return organization
+
+
+def create_organization(
+    db: Session,
+    user: User,
+    name: str,
+    slug: str,
+) -> Organization:
+    normalized_slug = slug.lower()
+
+    existing = db.scalar(
+        select(Organization).where(
+            Organization.slug == normalized_slug,
+        )
+    )
+
+    if existing is not None:
+        raise OrganizationSlugAlreadyExistsError
+
+    organization = Organization(
+        name=name,
+        slug=normalized_slug,
+    )
+
+    db.add(organization)
+
+    try:
+        db.flush()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+    except IntegrityError as exc:
+        db.rollback()
+        raise OrganizationSlugAlreadyExistsError from exc
+
+    db.refresh(organization)
 
     return organization
