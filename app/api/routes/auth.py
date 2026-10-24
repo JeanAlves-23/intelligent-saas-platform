@@ -3,7 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies.auth import get_current_user
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.auth import (
     AccessTokenResponse,
     LoginRequest,
@@ -72,3 +74,13 @@ def login(
     return AccessTokenResponse(
         access_token=token,
     )
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+)
+def get_me(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserResponse:
+    return UserResponse.model_validate(current_user)
