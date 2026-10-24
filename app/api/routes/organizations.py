@@ -4,8 +4,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.authorization import require_organization_role
 from app.api.dependencies.organization import get_current_organization
+from app.core.roles import OrganizationRole
 from app.db.session import get_db
+from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.organization import OrganizationResponse
@@ -44,3 +47,22 @@ def get_organization(
     ],
 ) -> OrganizationResponse:
     return OrganizationResponse.model_validate(organization)
+
+
+@router.get(
+    "/{organization_id}/admin-check",
+)
+def admin_check(
+    membership: Annotated[
+        Membership,
+        Depends(
+            require_organization_role(
+                OrganizationRole.ADMIN,
+            )
+        ),
+    ],
+) -> dict[str, str]:
+    return {
+        "status": "ok",
+        "role": membership.role,
+    }
