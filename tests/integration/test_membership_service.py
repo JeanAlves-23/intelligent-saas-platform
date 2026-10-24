@@ -2,12 +2,12 @@ import uuid
 
 import pytest
 
+from app.core.roles import OrganizationRole
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
-from app.core.roles import OrganizationRole
 from app.services.membership import (
     MembershipNotFoundError,
     list_organization_members,
