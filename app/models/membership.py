@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.roles import OrganizationRole
 from app.db.base import Base
 
 
@@ -42,8 +43,8 @@ class Membership(Base):
     role: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="member",
-        server_default="member",
+        default=OrganizationRole.MEMBER.value,
+        server_default=OrganizationRole.MEMBER.value,
     )
 
     status: Mapped[str] = mapped_column(
