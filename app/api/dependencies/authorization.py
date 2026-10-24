@@ -1,5 +1,6 @@
 import uuid
-from typing import Annotated, Callable
+from collections.abc import Callable
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy import select
