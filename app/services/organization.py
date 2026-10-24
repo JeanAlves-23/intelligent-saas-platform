@@ -18,6 +18,10 @@ class OrganizationSlugAlreadyExistsError(Exception):
     """Raised when attempting to create an organization with an existing slug."""
 
 
+class OrganizationNotFoundError(Exception):
+    """Raised when an organization cannot be found."""
+
+
 def get_user_organizations(
     db: Session,
     user: User,
@@ -96,6 +100,47 @@ def create_organization(
         db.add(membership)
         db.commit()
 
+    except IntegrityError as exc:
+        db.rollback()
+        raise OrganizationSlugAlreadyExistsError from exc
+
+    db.refresh(organization)
+
+    return organization
+
+
+def update_organization(
+    db: Session,
+    organization_id: uuid.UUID,
+    *,
+    name: str | None = None,
+    slug: str | None = None,
+) -> Organization:
+    organization = db.get(Organization, organization_id)
+
+    if organization is None:
+        raise OrganizationNotFoundError
+
+    if name is not None:
+        organization.name = name
+
+    if slug is not None:
+        normalized_slug = slug.lower()
+
+        existing = db.scalar(
+            select(Organization).where(
+                Organization.slug == normalized_slug,
+                Organization.id != organization_id,
+            )
+        )
+
+        if existing is not None:
+            raise OrganizationSlugAlreadyExistsError
+
+        organization.slug = normalized_slug
+
+    try:
+        db.commit()
     except IntegrityError as exc:
         db.rollback()
         raise OrganizationSlugAlreadyExistsError from exc

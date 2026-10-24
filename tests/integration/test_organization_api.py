@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.core.roles import OrganizationRole
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
@@ -828,3 +829,194 @@ def test_create_organization_without_token_returns_unauthorized() -> None:
     )
 
     assert response.status_code == 401
+
+
+def test_admin_can_update_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-update-admin@example.com",
+        full_name="Organization Update Admin",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Original Organization",
+        slug="admin-update-organization",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.ADMIN.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.patch(
+            f"/organizations/{organization.id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "Updated by Admin"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "Updated by Admin"
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_member_cannot_update_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-update-member@example.com",
+        full_name="Organization Update Member",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Member Organization",
+        slug="member-update-organization",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.MEMBER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.patch(
+            f"/organizations/{organization.id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"name": "Should Not Update"},
+        )
+
+        assert response.status_code == 403
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_update_organization_duplicate_slug_returns_conflict() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-update-conflict@example.com",
+        full_name="Organization Update Conflict",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    first = Organization(
+        name="First Organization",
+        slug="first-api-update-organization",
+    )
+
+    second = Organization(
+        name="Second Organization",
+        slug="second-api-update-organization",
+    )
+
+    try:
+        db.add_all([user, first, second])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=second.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.patch(
+            f"/organizations/{second.id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": "first-api-update-organization"},
+        )
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": "Organization slug already exists"}
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(Organization).filter(Organization.id.in_([first.id, second.id])).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_update_organization_invalid_slug_returns_validation_error() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-update-invalid@example.com",
+        full_name="Organization Update Invalid",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invalid Slug Organization",
+        slug="invalid-slug-update-organization",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.patch(
+            f"/organizations/{organization.id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"slug": "Invalid Slug!"},
+        )
+
+        assert response.status_code == 422
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
