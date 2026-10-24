@@ -1,5 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
+import jwt
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -234,6 +238,7 @@ def test_login_with_unknown_email_returns_unauthorized() -> None:
         "detail": "Invalid email or password",
     }
 
+
 def test_get_current_user_returns_authenticated_user() -> None:
     email = "current-user@example.com"
     password = "SecurePassword123!"
@@ -280,6 +285,7 @@ def test_get_current_user_returns_authenticated_user() -> None:
         db.commit()
         db.close()
 
+
 def test_get_current_user_without_token_returns_unauthorized() -> None:
     response = client.get("/auth/me")
 
@@ -298,6 +304,7 @@ def test_get_current_user_with_invalid_token_returns_unauthorized() -> None:
     assert response.json() == {
         "detail": "Could not validate credentials",
     }
+
 
 def test_get_current_user_inactive_user_returns_forbidden() -> None:
     email = "inactive-current-user@example.com"
@@ -334,3 +341,29 @@ def test_get_current_user_inactive_user_returns_forbidden() -> None:
         db.query(User).filter(User.email == email).delete()
         db.commit()
         db.close()
+
+
+def test_get_current_user_with_expired_token_returns_unauthorized() -> None:
+    payload = {
+        "sub": "00000000-0000-0000-0000-000000000000",
+        "iat": datetime.now(UTC) - timedelta(minutes=10),
+        "exp": datetime.now(UTC) - timedelta(minutes=5),
+    }
+
+    token = jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    response = client.get(
+        "/auth/me",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Could not validate credentials",
+    }
