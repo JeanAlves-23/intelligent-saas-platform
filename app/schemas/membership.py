@@ -16,6 +16,8 @@ class MembershipUserResponse(BaseModel):
 
 
 class MembershipResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     organization_id: uuid.UUID
     role: OrganizationRole
