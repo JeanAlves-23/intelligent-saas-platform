@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.routes.auth import router as auth_router
+from app.api.routes.organizations import router as organizations_router
 
 app = FastAPI(
     title="Intelligent SaaS Platform",
@@ -16,3 +17,4 @@ async def health() -> dict[str, str]:
 
 
 app.include_router(auth_router)
+app.include_router(organizations_router)
