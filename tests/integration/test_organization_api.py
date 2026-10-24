@@ -139,3 +139,115 @@ def test_list_organizations_without_token_returns_unauthorized() -> None:
     response = client.get("/organizations")
 
     assert response.status_code == 401
+
+
+def test_get_organization_returns_authorized_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-detail@example.com",
+        full_name="Organization Detail User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Organization Detail",
+        slug="organization-detail",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.get(
+            f"/organizations/{organization.id}",
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+        )
+
+        assert response.status_code == 200
+
+        body = response.json()
+
+        assert body["id"] == str(organization.id)
+        assert body["name"] == "Organization Detail"
+        assert body["slug"] == "organization-detail"
+
+    finally:
+        db.rollback()
+
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+
+        db.query(User).filter(User.email == "organization-detail@example.com").delete()
+
+        db.query(Organization).filter(Organization.slug == "organization-detail").delete()
+
+        db.commit()
+        db.close()
+
+
+def test_get_organization_without_membership_returns_forbidden() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-forbidden@example.com",
+        full_name="Organization Forbidden User",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Organization Forbidden",
+        slug="organization-forbidden",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.get(
+            f"/organizations/{organization.id}",
+            headers={
+                "Authorization": f"Bearer {token}",
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {
+            "detail": "Organization access denied",
+        }
+
+    finally:
+        db.rollback()
+
+        db.query(User).filter(User.email == "organization-forbidden@example.com").delete()
+
+        db.query(Organization).filter(Organization.slug == "organization-forbidden").delete()
+
+        db.commit()
+        db.close()
+
+
+def test_get_organization_with_invalid_id_returns_validation_error() -> None:
+    token = create_access_token("00000000-0000-0000-0000-000000000000")
+
+    response = client.get(
+        "/organizations/not-a-valid-uuid",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code in {401, 422}
