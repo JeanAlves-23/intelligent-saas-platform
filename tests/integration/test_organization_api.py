@@ -7,7 +7,6 @@ from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
 
-
 client = TestClient(app)
 
 
