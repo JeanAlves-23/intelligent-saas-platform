@@ -81,25 +81,6 @@ def get_organization(
 
 
 @router.get(
-    "/{organization_id}/admin-check",
-)
-def admin_check(
-    membership: Annotated[
-        Membership,
-        Depends(
-            require_organization_role(
-                OrganizationRole.ADMIN,
-            )
-        ),
-    ],
-) -> dict[str, str]:
-    return {
-        "status": "ok",
-        "role": membership.role,
-    }
-
-
-@router.get(
     "/{organization_id}/members",
     response_model=list[MembershipResponse],
 )
