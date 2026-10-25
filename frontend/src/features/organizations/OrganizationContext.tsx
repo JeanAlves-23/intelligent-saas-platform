@@ -6,6 +6,12 @@ import {
   useState,
 } from "react"
 
+import {
+  getActiveOrganizationId,
+  removeActiveOrganizationId,
+  setActiveOrganizationId,
+} from "../../services/organizationStorage"
+
 import { getOrganizations } from "../../api/organizations"
 import { useAuth } from "../auth/AuthContext"
 import type { Organization } from "../../types/organization"
@@ -43,6 +49,7 @@ export function OrganizationProvider({
         setOrganizations([])
         setActiveOrganizationState(null)
         setError(null)
+        removeActiveOrganizationId()
         return
       }
 
@@ -55,21 +62,27 @@ export function OrganizationProvider({
         setOrganizations(result)
 
         if (result.length > 0) {
-          setActiveOrganizationState((current) => {
-            if (
-              current &&
-              result.some(
-                (organization) =>
-                  organization.id === current.id,
-              )
-            ) {
-              return current
-            }
+          const storedOrganizationId =
+            getActiveOrganizationId()
 
-            return result[0]
-          })
+          const storedOrganization = result.find(
+            (organization) =>
+              organization.id === storedOrganizationId,
+          )
+
+          const organizationToActivate =
+            storedOrganization ?? result[0]
+
+          setActiveOrganizationState(
+            organizationToActivate,
+          )
+
+          setActiveOrganizationId(
+            organizationToActivate.id,
+          )
         } else {
           setActiveOrganizationState(null)
+          removeActiveOrganizationId()
         }
       } catch {
         setOrganizations([])
@@ -87,6 +100,7 @@ export function OrganizationProvider({
     organization: Organization,
   ): void {
     setActiveOrganizationState(organization)
+    setActiveOrganizationId(organization.id)
   }
 
   return (
