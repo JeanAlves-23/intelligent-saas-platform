@@ -22,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/health", tags=["system"])
 async def health() -> dict[str, str]:
     """Return the application health status."""
