@@ -22,6 +22,7 @@ type OrganizationContextValue = {
   isLoading: boolean
   error: string | null
   setActiveOrganization: (organization: Organization) => void
+  refreshOrganizations: () => Promise<void>
 }
 
 const OrganizationContext = createContext<
@@ -43,57 +44,58 @@ export function OrganizationProvider({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function loadOrganizations() {
-      if (!isAuthenticated) {
-        setOrganizations([])
-        setActiveOrganizationState(null)
-        setError(null)
-        removeActiveOrganizationId()
-        return
-      }
-
-      setIsLoading(true)
+  async function refreshOrganizations(): Promise<void> {
+    if (!isAuthenticated) {
+      setOrganizations([])
+      setActiveOrganizationState(null)
       setError(null)
-
-      try {
-        const result = await getOrganizations()
-
-        setOrganizations(result)
-
-        if (result.length > 0) {
-          const storedOrganizationId =
-            getActiveOrganizationId()
-
-          const storedOrganization = result.find(
-            (organization) =>
-              organization.id === storedOrganizationId,
-          )
-
-          const organizationToActivate =
-            storedOrganization ?? result[0]
-
-          setActiveOrganizationState(
-            organizationToActivate,
-          )
-
-          setActiveOrganizationId(
-            organizationToActivate.id,
-          )
-        } else {
-          setActiveOrganizationState(null)
-          removeActiveOrganizationId()
-        }
-      } catch {
-        setOrganizations([])
-        setActiveOrganizationState(null)
-        setError("Unable to load organizations.")
-      } finally {
-        setIsLoading(false)
-      }
+      removeActiveOrganizationId()
+      return
     }
 
-    void loadOrganizations()
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const result = await getOrganizations()
+
+      setOrganizations(result)
+
+      if (result.length > 0) {
+        const storedOrganizationId =
+          getActiveOrganizationId()
+
+        const storedOrganization = result.find(
+          (organization) =>
+            organization.id === storedOrganizationId,
+        )
+
+        const organizationToActivate =
+          storedOrganization ?? result[0]
+
+        setActiveOrganizationState(
+          organizationToActivate,
+        )
+
+        setActiveOrganizationId(
+          organizationToActivate.id,
+        )
+      } else {
+        setActiveOrganizationState(null)
+        removeActiveOrganizationId()
+      }
+    } catch {
+      setOrganizations([])
+      setActiveOrganizationState(null)
+      setError("Unable to load organizations.")
+      removeActiveOrganizationId()
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void refreshOrganizations()
   }, [isAuthenticated])
 
   function setActiveOrganization(
@@ -111,6 +113,7 @@ export function OrganizationProvider({
         isLoading,
         error,
         setActiveOrganization,
+        refreshOrganizations,
       }}
     >
       {children}
