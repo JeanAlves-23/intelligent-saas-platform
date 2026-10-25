@@ -5,6 +5,13 @@ import { useNavigate } from "react-router-dom"
 import { createOrganization } from "../api/organizations"
 import { useAuth } from "../features/auth/AuthContext"
 import { useOrganization } from "../features/organizations/OrganizationContext"
+import { updateOrganization } from "../api/organizations"
+
+
+const [editName, setEditName] = useState("")
+const [editSlug, setEditSlug] = useState("")
+const [editError, setEditError] = useState<string | null>(null)
+const [isUpdating, setIsUpdating] = useState(false)
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -31,6 +38,53 @@ export function DashboardPage() {
     navigate("/login", {
       replace: true,
     })
+  }
+
+  async function handleUpdateOrganization(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
+
+    if (!activeOrganization) {
+      return
+    }
+
+    setEditError(null)
+    setIsUpdating(true)
+
+    try {
+      const updated = await updateOrganization(
+        activeOrganization.id,
+        {
+          name: editName || activeOrganization.name,
+          slug: editSlug || activeOrganization.slug,
+        },
+      )
+
+      await refreshOrganizations()
+      setActiveOrganization(updated)
+
+      setEditName("")
+      setEditSlug("")
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+
+        if (status === 409) {
+          setEditError("This organization slug is already in use.")
+        } else if (status === 422) {
+          setEditError("Please check the organization information.")
+        } else if (status === 403) {
+          setEditError("You do not have permission to update this organization.")
+        } else {
+          setEditError("Unable to update organization.")
+        }
+      } else {
+        setEditError("Unable to update organization.")
+      }
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   async function handleCreateOrganization(
@@ -201,7 +255,7 @@ export function DashboardPage() {
       </section>
 
       {activeOrganization && (
-        <section>
+        <><section>
           <h2>Active Organization</h2>
 
           <p>
@@ -212,6 +266,59 @@ export function DashboardPage() {
             Slug: {activeOrganization.slug}
           </p>
         </section>
+        <section>
+          <h2>Edit Organization</h2>
+
+          <form onSubmit={handleUpdateOrganization}>
+            <div>
+              <label htmlFor="edit-organization-name">
+                Name
+              </label>
+
+              <input
+                id="edit-organization-name"
+                type="text"
+                value={editName}
+                placeholder={activeOrganization.name}
+                onChange={(event) => setEditName(event.target.value)}
+                minLength={2}
+                maxLength={120}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="edit-organization-slug">
+                Slug
+              </label>
+
+              <input
+                id="edit-organization-slug"
+                type="text"
+                value={editSlug}
+                placeholder={activeOrganization.slug}
+                onChange={(event) => setEditSlug(event.target.value)}
+                minLength={2}
+                maxLength={120}
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+              />
+            </div>
+
+            {editError && (
+              <p role="alert">
+                {editError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isUpdating}
+            >
+              {isUpdating
+                ? "Updating..."
+                : "Update organization"}
+            </button>
+          </form>
+        </section></>
       )}
 
       <button
