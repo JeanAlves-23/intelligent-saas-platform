@@ -12,6 +12,10 @@ from app.db.session import get_db
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
+from app.schemas.invitation import (
+    InvitationCreateRequest,
+    InvitationResponse,
+)
 from app.schemas.membership import (
     MembershipResponse,
     MembershipRoleUpdateRequest,
@@ -20,6 +24,12 @@ from app.schemas.organization import (
     OrganizationCreateRequest,
     OrganizationResponse,
     OrganizationUpdateRequest,
+)
+from app.services.invitation import (
+    InvitationAlreadyExistsError,
+    InvitationRoleNotAllowedError,
+    UserAlreadyMemberError,
+    create_invitation,
 )
 from app.services.membership import (
     MembershipNotFoundError,
@@ -229,3 +239,44 @@ def delete_organization_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Organization not found",
         ) from exc
+
+
+@router.post(
+    "/{organization_id}/invitations",
+    response_model=InvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_organization_invitation(
+    organization_id: uuid.UUID,
+    payload: InvitationCreateRequest,
+    inviter_membership: Annotated[
+        Membership,
+        Depends(require_organization_role(OrganizationRole.ADMIN)),
+    ],
+    db: Annotated[Session, Depends(get_db)],
+) -> InvitationResponse:
+    try:
+        invitation = create_invitation(
+            db,
+            organization_id,
+            inviter_membership,
+            payload.email,
+            payload.role,
+        )
+    except InvitationRoleNotAllowedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invitation role not allowed",
+        ) from exc
+    except UserAlreadyMemberError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User is already an organization member",
+        ) from exc
+    except InvitationAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Active invitation already exists",
+        ) from exc
+
+    return InvitationResponse.model_validate(invitation)

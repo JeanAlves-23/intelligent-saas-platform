@@ -4,6 +4,7 @@ from app.core.roles import OrganizationRole
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.invitation import Invitation
 from app.models.membership import Membership
 from app.models.organization import Organization
 from app.models.user import User
@@ -1160,3 +1161,450 @@ def test_member_cannot_delete_organization() -> None:
         db.query(User).filter(User.id == user.id).delete()
         db.commit()
         db.close()
+
+
+def test_owner_can_create_member_invitation() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-owner-member@example.com",
+        full_name="Invitation API Owner Member",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Owner Member",
+        slug="invitation-api-owner-member",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": "new-member-api@example.com",
+                "role": "member",
+            },
+        )
+
+        assert response.status_code == 201
+
+        body = response.json()
+
+        assert body["organization_id"] == str(organization.id)
+        assert body["email"] == "new-member-api@example.com"
+        assert body["role"] == "member"
+        assert body["accepted_at"] is None
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_owner_can_create_admin_invitation() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-owner-admin@example.com",
+        full_name="Invitation API Owner Admin",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Owner Admin",
+        slug="invitation-api-owner-admin",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": "new-admin-api@example.com",
+                "role": "admin",
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()["role"] == "admin"
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_admin_can_create_member_invitation() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-admin-member@example.com",
+        full_name="Invitation API Admin Member",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Admin Member",
+        slug="invitation-api-admin-member",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.ADMIN.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": "admin-created-member@example.com",
+                "role": "member",
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()["role"] == "member"
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_admin_cannot_create_admin_invitation() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-admin-admin@example.com",
+        full_name="Invitation API Admin Admin",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Admin Restriction",
+        slug="invitation-api-admin-restriction",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.ADMIN.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": "forbidden-admin@example.com",
+                "role": "admin",
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Invitation role not allowed"}
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_member_cannot_create_invitation() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-member@example.com",
+        full_name="Invitation API Member",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Member",
+        slug="invitation-api-member",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.MEMBER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": "member-invite@example.com",
+                "role": "member",
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Insufficient organization role"}
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_duplicate_active_invitation_returns_conflict() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-duplicate@example.com",
+        full_name="Invitation API Duplicate",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Duplicate",
+        slug="invitation-api-duplicate",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        payload = {
+            "email": "duplicate-api@example.com",
+            "role": "member",
+        }
+
+        first_response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+
+        second_response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+
+        assert first_response.status_code == 201
+        assert second_response.status_code == 409
+        assert second_response.json() == {"detail": "Active invitation already exists"}
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_existing_member_invitation_returns_conflict() -> None:
+    db = SessionLocal()
+
+    owner = User(
+        email="invitation-api-existing-owner@example.com",
+        full_name="Invitation Existing Owner",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    existing_member = User(
+        email="invitation-api-existing-member@example.com",
+        full_name="Invitation Existing Member",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation Existing Member Organization",
+        slug="invitation-api-existing-member",
+    )
+
+    try:
+        db.add_all([owner, existing_member, organization])
+        db.commit()
+
+        owner_membership = Membership(
+            user_id=owner.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        member_membership = Membership(
+            user_id=existing_member.id,
+            organization_id=organization.id,
+            role=OrganizationRole.MEMBER.value,
+        )
+
+        db.add_all([owner_membership, member_membership])
+        db.commit()
+
+        token = create_access_token(str(owner.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": existing_member.email,
+                "role": "member",
+            },
+        )
+
+        assert response.status_code == 409
+        assert response.json() == {"detail": "User is already an organization member"}
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id.in_([owner.id, existing_member.id])).delete()
+        db.commit()
+        db.close()
+
+
+def test_owner_role_invitation_is_rejected() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="invitation-api-owner-role@example.com",
+        full_name="Invitation API Owner Role",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Invitation API Owner Role",
+        slug="invitation-api-owner-role",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.post(
+            f"/organizations/{organization.id}/invitations",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "email": "future-owner-api@example.com",
+                "role": "owner",
+            },
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Invitation role not allowed"}
+
+    finally:
+        db.rollback()
+        db.query(Invitation).filter(Invitation.organization_id == organization.id).delete()
+        db.query(Membership).filter(Membership.organization_id == organization.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_create_invitation_without_token_returns_unauthorized() -> None:
+    response = client.post(
+        "/organizations/00000000-0000-0000-0000-000000000001/invitations",
+        json={
+            "email": "unauthorized-invitation@example.com",
+            "role": "member",
+        },
+    )
+
+    assert response.status_code == 401
