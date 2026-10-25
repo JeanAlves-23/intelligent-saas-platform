@@ -2,16 +2,22 @@ import axios from "axios"
 import { useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { createOrganization } from "../api/organizations"
 import { useAuth } from "../features/auth/AuthContext"
 import { useOrganization } from "../features/organizations/OrganizationContext"
-import { updateOrganization } from "../api/organizations"
+
+import {
+  createOrganization,
+  deleteOrganization,
+  updateOrganization,
+} from "../api/organizations"
 
 
 const [editName, setEditName] = useState("")
 const [editSlug, setEditSlug] = useState("")
 const [editError, setEditError] = useState<string | null>(null)
 const [isUpdating, setIsUpdating] = useState(false)
+const [deleteError, setDeleteError] = useState<string | null>(null)
+const [isDeleting, setIsDeleting] = useState(false)
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -123,6 +129,47 @@ export function DashboardPage() {
       }
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  async function handleDeleteOrganization() {
+    if (!activeOrganization) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Delete organization "${activeOrganization.name}"? This action cannot be undone.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeleteError(null)
+    setIsDeleting(true)
+
+    try {
+      await deleteOrganization(activeOrganization.id)
+
+      await refreshOrganizations()
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+
+        if (status === 403) {
+          setDeleteError(
+            "You do not have permission to delete this organization.",
+          )
+        } else if (status === 404) {
+          setDeleteError("Organization not found.")
+        } else {
+          setDeleteError("Unable to delete organization.")
+        }
+      } else {
+        setDeleteError("Unable to delete organization.")
+      }
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -318,7 +365,30 @@ export function DashboardPage() {
                 : "Update organization"}
             </button>
           </form>
-        </section></>
+        </section>
+        <section>
+        <h2>Delete Organization</h2>
+
+        <p>
+          Deleting an organization is permanent and cannot be undone.
+        </p>
+
+        {deleteError && (
+          <p role="alert">
+            {deleteError}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleDeleteOrganization}
+          disabled={isDeleting}
+        >
+          {isDeleting
+            ? "Deleting..."
+            : "Delete organization"}
+        </button>
+      </section></>
       )}
 
       <button
