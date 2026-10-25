@@ -148,3 +148,16 @@ def update_organization(
     db.refresh(organization)
 
     return organization
+
+
+def delete_organization(
+    db: Session,
+    organization_id: uuid.UUID,
+) -> None:
+    organization = db.get(Organization, organization_id)
+
+    if organization is None:
+        raise OrganizationNotFoundError
+
+    db.delete(organization)
+    db.commit()
