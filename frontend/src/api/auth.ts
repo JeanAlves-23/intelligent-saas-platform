@@ -1,0 +1,25 @@
+import { api } from "./client"
+import type {
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest,
+    User,
+} from "../types/auth"
+
+export async function registerUser(payload: RegisterRequest): Promise<User> {
+    const response = await api.post<User>("/auth/register", payload)
+
+    return response.data
+}
+
+export async function loginUser(payload: LoginRequest): Promise<LoginResponse> {
+    const response = await api.post<LoginResponse>("/auth/login", payload)
+
+    return response.data
+}
+
+export async function getCurrentUser(): Promise<User> {
+    const response = await api.get<User>("/auth/me")
+
+    return response.data
+}
