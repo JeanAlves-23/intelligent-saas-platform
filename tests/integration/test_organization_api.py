@@ -1020,3 +1020,143 @@ def test_update_organization_invalid_slug_returns_validation_error() -> None:
         db.query(User).filter(User.id == user.id).delete()
         db.commit()
         db.close()
+
+
+def test_owner_can_delete_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-delete-owner@example.com",
+        full_name="Organization Delete Owner",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Organization Delete Owner",
+        slug="organization-delete-owner",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.OWNER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        organization_id = organization.id
+        token = create_access_token(str(user.id))
+
+        response = client.delete(
+            f"/organizations/{organization_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 204
+
+        db.expire_all()
+
+        assert db.get(Organization, organization_id) is None
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_admin_cannot_delete_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-delete-admin@example.com",
+        full_name="Organization Delete Admin",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Organization Delete Admin",
+        slug="organization-delete-admin",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.ADMIN.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.delete(
+            f"/organizations/{organization.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Insufficient organization role"}
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()
+
+
+def test_member_cannot_delete_organization() -> None:
+    db = SessionLocal()
+
+    user = User(
+        email="organization-delete-member@example.com",
+        full_name="Organization Delete Member",
+        password_hash=hash_password("SecurePassword123!"),
+    )
+
+    organization = Organization(
+        name="Organization Delete Member",
+        slug="organization-delete-member",
+    )
+
+    try:
+        db.add_all([user, organization])
+        db.commit()
+
+        membership = Membership(
+            user_id=user.id,
+            organization_id=organization.id,
+            role=OrganizationRole.MEMBER.value,
+        )
+
+        db.add(membership)
+        db.commit()
+
+        token = create_access_token(str(user.id))
+
+        response = client.delete(
+            f"/organizations/{organization.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403
+
+    finally:
+        db.rollback()
+        db.query(Membership).filter(Membership.user_id == user.id).delete()
+        db.query(Organization).filter(Organization.id == organization.id).delete()
+        db.query(User).filter(User.id == user.id).delete()
+        db.commit()
+        db.close()

@@ -30,6 +30,7 @@ from app.services.organization import (
     OrganizationNotFoundError,
     OrganizationSlugAlreadyExistsError,
     create_organization,
+    delete_organization,
     get_user_organizations,
     update_organization,
 )
@@ -204,3 +205,27 @@ def update_organization_endpoint(
         ) from exc
 
     return OrganizationResponse.model_validate(organization)
+
+
+@router.delete(
+    "/{organization_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_organization_endpoint(
+    organization_id: uuid.UUID,
+    owner_membership: Annotated[
+        Membership,
+        Depends(require_organization_role(OrganizationRole.OWNER)),
+    ],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    try:
+        delete_organization(
+            db,
+            organization_id,
+        )
+    except OrganizationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found",
+        ) from exc
