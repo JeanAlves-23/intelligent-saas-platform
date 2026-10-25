@@ -486,3 +486,119 @@ AI / RAG
 Backend Core v1 is the current completed foundation of the platform.
 
 The next major milestone is the frontend, which will expose the existing authentication, organization, membership, RBAC, and invitation capabilities through a complete user interface.
+
+## Frontend
+
+The frontend is built with React, TypeScript, and Vite.
+
+### Frontend Stack
+
+- React
+- TypeScript
+- Vite
+- React Router
+- Axios
+- TanStack Query
+- ESLint
+- Prettier
+
+### Frontend Structure
+
+```text
+frontend/
+├── src/
+│   ├── api/
+│   ├── components/
+│   ├── features/
+│   ├── hooks/
+│   ├── layouts/
+│   ├── pages/
+│   ├── router/
+│   ├── services/
+│   └── types/
+├── .env.example
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+
+### Frontend Environment
+
+Create:
+
+```text
+frontend/.env
+```
+
+based on:
+
+```text
+frontend/.env.example
+```
+
+Example:
+
+```text
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+### Run the Frontend
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will normally be available at:
+
+```text
+http://localhost:5173
+```
+
+### Initial Routes
+
+```text
+/
+/login
+/register
+/dashboard
+```
+
+### Backend Integration
+
+The frontend uses Axios for HTTP communication and TanStack Query for server-state management.
+
+The API base URL comes from:
+
+```text
+VITE_API_BASE_URL
+```
+
+The initial integration validates communication with:
+
+```text
+GET /health
+```
+
+### Frontend Validation
+
+Run:
+
+```powershell
+cd frontend
+npm run lint
+npm run format:check
+npm run build
+```
+
+### CORS
+
+The FastAPI backend allows local frontend development from:
+
+```text
+http://localhost:5173
+http://127.0.0.1:5173
+```
+
+Production CORS configuration will be handled separately during deployment.
